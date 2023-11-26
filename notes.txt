@@ -1,0 +1,20 @@
+##### Sentiment Analysis Links #####
+
+https://aws.amazon.com/what-is/sentiment-analysis/
+
+https://www.datarobot.com/blog/using-machine-learning-for-sentiment-analysis-a-deep-dive/
+
+
+###### Steam Reviews Dataset ########
+
+https://www.kaggle.com/datasets/najzeko/steam-reviews-2021/data
+
+
+
+##### RNNs #####
+
+https://www.youtube.com/watch?v=FTCpdNuIiZM
+
+https://www.youtube.com/watch?v=AsNTP8Kwu80
+
+https://www.geeksforgeeks.org/sentiment-analysis-with-an-recurrent-neural-networks-rnn/

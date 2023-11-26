@@ -1,14 +1,12 @@
 import pandas as pd
-import time
 
 
-def get_data_iterator(filepath):
-    start = time.time()
+def get_data_generator(file_path: str, chunk_size: int, use_cols):
 
     data = pd.read_csv(
-        filepath,
-        usecols=[],
-        chunksize=500
+        file_path,
+        usecols=use_cols,
+        chunksize=chunk_size
     )
 
     return data
