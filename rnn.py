@@ -16,6 +16,8 @@ from keras.utils import to_categorical
 
 from sklearn.model_selection import train_test_split
 
+import time
+
 # import data helper functions
 from data import get_data_iterator
 
@@ -41,13 +43,13 @@ VOCAB_SIZE = 1000
 
 
 # Number of rows to read per chunk
-CHUNKSIZE = 10
+CHUNKSIZE = 100
 
 BUFFER_SIZE = 10000
 BATCH_SIZE = 64
 
 EMBEDDING_DIM = 64
-EPOCHS = 250
+EPOCHS = 10
 TEST_SIZE = 0.2
 
 
@@ -61,6 +63,8 @@ data_gen = get_data_iterator(GPT_REVIEWS_PATH, CHUNKSIZE, USECOLS)
 
 # Initialize word Tokenizer
 tokenizer = Tokenizer()
+
+
 
 # Initialize word Encoder
 encoder = TextVectorization(max_tokens=VOCAB_SIZE)
@@ -95,16 +99,16 @@ model.compile(loss=BinaryCrossentropy(from_logits=True),
 
 
 # Helper function to encode a chunk of data
-def preprocess_chunk(chunk, tokenizer, encoder):
+def preprocess_chunk(chunk, tokenizer: Tokenizer, encoder: TextVectorization):
     
     
     
-    texts = tf.make_ndarray(chunk[0]['review']).tolist()
     labels = chunk[1]
     
-
+    texts = [item.decode('utf-8') for item in chunk[0]['review'].numpy()]
     
     tokenizer.fit_on_texts(texts)
+
     encoder.adapt(texts)
     encoded_texts = encoder(texts)
     
@@ -112,14 +116,19 @@ def preprocess_chunk(chunk, tokenizer, encoder):
 
 
 # Train the model
-
+start = time.time()
 for epoch in range(EPOCHS):
+    print(f"epoch: {epoch + 1}")
     for chunk in data_gen.take(1):
-        
+
         encoded_texts, labels = preprocess_chunk(chunk, tokenizer, encoder)
         model.train_on_batch(encoded_texts, labels)
 
 
+
+interval = time.time() - start
+
+print(f"Training finished. Took {interval} seconds.")
 
 
 test_gen = get_data_iterator(GPT_REVIEWS_PATH, CHUNKSIZE, USECOLS)
