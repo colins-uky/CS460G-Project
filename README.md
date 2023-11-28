@@ -8,3 +8,11 @@ The process of computationally identifying and categorizing opinions expressed i
 [Amazon's webpage on sentiment analysis.](https://aws.amazon.com/what-is/sentiment-analysis/)
 
 ## Sentiment Analysis of Steam Video Game Reviews
+
+
+
+## Install Python Packages
+
+```bash
+pip install tensorflow tensorflow-datasets pandas numpy scikit-learn
+```
