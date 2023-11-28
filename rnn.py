@@ -14,22 +14,36 @@ from keras.optimizers import Adam
 from data import get_data_generator
 
 
-
+# (7.98 GB FILE WARNING) 
+# Use get_data_generator to load data in chunks into memory
 DATA_FILEPATH = "data/archive/steam_reviews.csv"
 
+
+
+GPT_REVIEWS_PATH = "data/test/gpt_reviews.csv"
 
 
 
 
 
 # Name of columns to read
-usecols = ["review", "recommended"]
+#review: text of review, recommended: boolean
+USECOLS = ["review", "recommended"]
 
 # Number of rows to read per chunk
-chunksize = 250
+CHUNKSIZE = 250
 
 # Get iterator
-data_gen = get_data_generator(file_path=DATA_FILEPATH, chunk_size=chunksize, use_cols=usecols)
+data_gen = get_data_generator(file_path=GPT_REVIEWS_PATH, chunk_size=10, use_cols=USECOLS)
+
+
+
+
+
+#
+
+
+
 
 
 for idx, chunk in enumerate(data_gen):

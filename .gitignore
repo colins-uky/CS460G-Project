@@ -1,1 +1,2 @@
-*.csv
+steam_reviews.csv
+*.pyc
