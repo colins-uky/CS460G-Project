@@ -1,2 +1,3 @@
-steam_reviews.csv
+steam_reviews_large.csv
+steam_reviews_small.csv
 *.pyc

@@ -28,22 +28,25 @@ from data import get_data_iterator
 ####### INITIALIZE GLOBAL VARS #######
 
 # (7.98 GB FILE WARNING) 
-# Use get_data_generator to load data in chunks into memory
-STEAM_REVIEWS_FILEPATH = "data/archive/steam_reviews.csv"
+# Use get_data_iterator to load data in chunks into memory
+STEAM_REVIEWS_LARGE_PATH = "data/archive/steam_reviews_large.csv"
+
+# (2.01 GB FILE WARNING)
+STEAM_REVIEWS_SMALL_PATH = "data/archive/steam_reviews_small.csv"
 
 # Smaller dataset for testing (30 rows)
 GPT_REVIEWS_PATH = "data/test/gpt_reviews.csv"
 
 # Name of columns to read
 #review: text of review, recommended: boolean
-USECOLS = ["review", "recommended"]
+USECOLS = ["review_text", "review_score"]
 
 # Number of distinct words in dataset
 VOCAB_SIZE = 1000
 
 
 # Number of rows to read per chunk
-CHUNKSIZE = 100
+CHUNKSIZE = 500
 
 BUFFER_SIZE = 10000
 BATCH_SIZE = 64
@@ -59,7 +62,7 @@ TEST_SIZE = 0.2
 
 ####### PREPROCESSING #######
 
-data_gen = get_data_iterator(GPT_REVIEWS_PATH, CHUNKSIZE, USECOLS)
+data_gen = get_data_iterator(STEAM_REVIEWS_SMALL_PATH, CHUNKSIZE, USECOLS)
 
 
 
@@ -87,7 +90,7 @@ class RNN:
         
         # Compile Model
         self.model.compile(loss=BinaryCrossentropy(from_logits=True),
-              optimizer=Adam(1e-4),
+              optimizer=Adam(0.01),
               metrics=['accuracy']
         )
         
@@ -116,7 +119,7 @@ class RNN:
     # Helper function to encode a chunk of data
     def preprocess_chunk(self, chunk):
         labels = chunk[1]
-        texts = [item.decode('utf-8') for item in chunk[0]['review'].numpy()]
+        texts = [item.decode('utf-8') for item in chunk[0][USECOLS[0]].numpy()]
         
         self.tokenizer.fit_on_texts(texts)
 
@@ -127,7 +130,7 @@ class RNN:
 
 
     def test(self):
-        test_gen = get_data_iterator(GPT_REVIEWS_PATH, CHUNKSIZE, USECOLS)
+        test_gen = get_data_iterator(STEAM_REVIEWS_SMALL_PATH, CHUNKSIZE, USECOLS)
         # Evaluation on the test set
         total_loss = 0.0
         total_accuracy = 0.0
@@ -142,7 +145,9 @@ class RNN:
             total_loss += loss
             total_accuracy += accuracy
             total_batches += 1
-            print(total_batches)
+            print(f"Batches tested: {total_batches}.")
+            if total_batches > 10:
+                break
             
         interval = time.time() - start
         print(f"Finished testing. Took {interval:.3f} seconds.")
