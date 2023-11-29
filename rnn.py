@@ -49,7 +49,7 @@ BUFFER_SIZE = 10000
 BATCH_SIZE = 64
 
 EMBEDDING_DIM = 64
-EPOCHS = 10
+EPOCHS = 100
 TEST_SIZE = 0.2
 
 
@@ -61,13 +61,7 @@ TEST_SIZE = 0.2
 
 data_gen = get_data_iterator(GPT_REVIEWS_PATH, CHUNKSIZE, USECOLS)
 
-# Initialize word Tokenizer
-tokenizer = Tokenizer()
 
-
-
-# Initialize word Encoder
-encoder = TextVectorization(max_tokens=VOCAB_SIZE)
 
 
 ####### END PREPROCESSING #######
@@ -76,75 +70,150 @@ encoder = TextVectorization(max_tokens=VOCAB_SIZE)
 
 ####### BUILD MODEL #######
 
-model = Sequential([
-    Embedding(
-        input_dim=VOCAB_SIZE,
-        output_dim = EMBEDDING_DIM,
-        # Mask paddings with zeros
-        mask_zero=True
-    ),
-    Bidirectional(LSTM(EMBEDDING_DIM)),
-    Dense(EMBEDDING_DIM, activation='relu'),
-    Dense(1)
-])
-
-
-
-# Compile Model
-model.compile(loss=BinaryCrossentropy(from_logits=True),
+class RNN:
+    def __init__(self) -> None:
+        self.model = Sequential([
+            Embedding(
+                input_dim=VOCAB_SIZE,
+                output_dim = EMBEDDING_DIM,
+                # Mask paddings with zeros
+                mask_zero=True
+            ),
+            Bidirectional(LSTM(EMBEDDING_DIM)),
+            Dense(EMBEDDING_DIM, activation='relu'),
+            Dense(1)
+        ])  
+        
+        
+        # Compile Model
+        self.model.compile(loss=BinaryCrossentropy(from_logits=True),
               optimizer=Adam(1e-4),
               metrics=['accuracy']
-            )
+        )
+        
+        # Initialize word Tokenizer
+        self.tokenizer = Tokenizer()
+
+        # Initialize word Encoder
+        self.encoder = TextVectorization(max_tokens=VOCAB_SIZE)
+        
+        
+    def train(self):
+        # Train the model
+        start = time.time()
+        for epoch in range(EPOCHS):
+            print(f"epoch: {epoch + 1}")
+            for chunk in data_gen:
+
+                encoded_texts, labels = self.preprocess_chunk(chunk)
+                self.model.train_on_batch(encoded_texts, labels)
+    
+        interval = time.time() - start
+
+        print(f"Training finished. Took {interval:.2f} seconds.")
+
+
+    # Helper function to encode a chunk of data
+    def preprocess_chunk(self, chunk):
+        labels = chunk[1]
+        texts = [item.decode('utf-8') for item in chunk[0]['review'].numpy()]
+        
+        self.tokenizer.fit_on_texts(texts)
+
+        self.encoder.adapt(texts)
+        encoded_texts = self.encoder(texts)
+        
+        return encoded_texts, labels
+
+
+    def test(self):
+        test_gen = get_data_iterator(GPT_REVIEWS_PATH, CHUNKSIZE, USECOLS)
+        # Evaluation on the test set
+        total_loss = 0.0
+        total_accuracy = 0.0
+        total_batches = 0
+
+
+        print("Starting testing.")
+        start = time.time()
+        for chunk in test_gen:
+            encoded_texts, labels = self.preprocess_chunk(chunk)
+            loss, accuracy = self.model.evaluate(encoded_texts, labels, verbose=0)
+            total_loss += loss
+            total_accuracy += accuracy
+            total_batches += 1
+            print(total_batches)
+            
+        interval = time.time() - start
+        print(f"Finished testing. Took {interval:.3f} seconds.")
 
 
 
-# Helper function to encode a chunk of data
-def preprocess_chunk(chunk, tokenizer: Tokenizer, encoder: TextVectorization):
+
+
+
+
+        average_loss = total_loss / total_batches
+        average_accuracy = total_accuracy / total_batches
+
+        print(f"\n\nAverage Loss: {average_loss}.\nAverage Accuracy: {average_accuracy}.\n\n")
+
+
+
+    def predict(self, text):
+        # Tokenize and encode the input text
+        text = [text]
+        self.encoder.adapt(text)
+        encoded_text = self.encoder(text)
+
+        # Make predictions
+        predictions = self.model.predict(encoded_text)
+
+        # The model output is logits. Apply sigmoid activation for binary classification.
+        predicted_prob = tf.nn.sigmoid(predictions[0]).numpy()
+
+        # Determine the sentiment based on the probability
+        if predicted_prob >= 0.5:
+            sentiment = 'positive'
+        else:
+            sentiment = 'negative'
+
+        return sentiment, predicted_prob
+
+
+
+
+
+
+def main():
     
     
     
-    labels = chunk[1]
+    rnn = RNN()
+    rnn.train()
+    rnn.test()
     
-    texts = [item.decode('utf-8') for item in chunk[0]['review'].numpy()]
     
-    tokenizer.fit_on_texts(texts)
-
-    encoder.adapt(texts)
-    encoded_texts = encoder(texts)
+    inp = input(">>")
+    while inp != "q":
+        sentiment, prob = rnn.predict(inp)
+        
+        if prob < 0.5:
+            print(f"RNN predicts {sentiment} sentiment with {1 - prob} probability.")
+        else:
+            print(f"RNN predicts {sentiment} sentiment with {prob} probability.")
+            
+        inp = input(">>")
+        
     
-    return encoded_texts, labels
-
-
-# Train the model
-start = time.time()
-for epoch in range(EPOCHS):
-    print(f"epoch: {epoch + 1}")
-    for chunk in data_gen.take(1):
-
-        encoded_texts, labels = preprocess_chunk(chunk, tokenizer, encoder)
-        model.train_on_batch(encoded_texts, labels)
+    
+    
+if __name__ == "__main__":
+    main()
+    
 
 
 
-interval = time.time() - start
-
-print(f"Training finished. Took {interval} seconds.")
 
 
-test_gen = get_data_iterator(GPT_REVIEWS_PATH, CHUNKSIZE, USECOLS)
-# Evaluation on the test set
-total_loss = 0.0
-total_accuracy = 0.0
-total_batches = 0
 
-for chunk in test_gen:
-    encoded_texts, labels = preprocess_chunk(chunk, tokenizer, encoder)
-    loss, accuracy = model.evaluate(encoded_texts, labels, verbose=0)
-    total_loss += loss
-    total_accuracy += accuracy
-    total_batches += 1
-
-average_loss = total_loss / total_batches
-average_accuracy = total_accuracy / total_batches
-
-print(f"\n\nAverage Loss: {average_loss}.\nAverage Accuracy: {average_accuracy}.\n\n")

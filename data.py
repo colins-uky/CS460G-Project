@@ -9,7 +9,8 @@ def get_data_iterator(filepath: str, chunksize: int, cols):
     data_batches = tf.data.experimental.make_csv_dataset(
         filepath, batch_size=chunksize,
         label_name=cols[-1],
-        select_columns=cols
+        select_columns=cols,
+        num_epochs=1
     )
     
     return data_batches
