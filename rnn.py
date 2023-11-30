@@ -8,7 +8,7 @@ import tensorflow as tf
 
 # Keras - top level api for tensorflow
 from keras.models import Sequential
-from keras.layers import SimpleRNN, Dense, Embedding, TextVectorization, LSTM, Bidirectional
+from keras.layers import SimpleRNN, Dense, Embedding, TextVectorization, LSTM, Bidirectional, Flatten
 from keras.optimizers import Adam
 from keras.losses import BinaryCrossentropy
 from keras.preprocessing.text import Tokenizer
@@ -17,9 +17,11 @@ from keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
 
 import time
+import re
+import string
 
 # import data helper functions
-from data import get_data_iterator
+from data import get_data_iterator, get_entire_dataset_as_tfds
 
 
 
@@ -39,11 +41,11 @@ GPT_REVIEWS_PATH = "data/test/gpt_reviews.csv"
 
 # Name of columns to read
 #review: text of review, recommended: boolean
-USECOLS = ["review_text", "review_score"]
+USECOLS = ["review", "recommended"]
 
 # Number of distinct words in dataset
 VOCAB_SIZE = 1000
-
+ 
 
 # Number of rows to read per chunk
 CHUNKSIZE = 500
@@ -51,9 +53,15 @@ CHUNKSIZE = 500
 BUFFER_SIZE = 10000
 BATCH_SIZE = 64
 
+
 EMBEDDING_DIM = 64
-EPOCHS = 100
+EPOCHS = 50
 TEST_SIZE = 0.2
+
+
+
+MAX_FEATURES = 10000
+SEQUENCE_LENGTH = 250
 
 
 ####### END GLOBAL VARS #######
@@ -62,11 +70,54 @@ TEST_SIZE = 0.2
 
 ####### PREPROCESSING #######
 
-data_gen = get_data_iterator(STEAM_REVIEWS_SMALL_PATH, CHUNKSIZE, USECOLS)
+def filter_input(input_data):
+    lowercase = tf.strings.lower(input_data)
+    stripped_html = tf.strings.regex_replace(lowercase, '<br />', ' ')
+    
+    return tf.strings.regex_replace(stripped_html, '[%s]' % re.escape(string.punctuation), '')
+
+
+
+# get dataset from .csv
+train_dataset, test_dataset = get_entire_dataset_as_tfds(file_path=GPT_REVIEWS_PATH, 
+                                                        use_cols=USECOLS, 
+                                                        test_size=TEST_SIZE
+                                                    )
 
 
 
 
+  
+# Initialize word Encoder
+encoder = TextVectorization(
+    standardize=filter_input,
+    max_tokens=MAX_FEATURES,  
+    output_mode="int",
+    output_sequence_length=SEQUENCE_LENGTH
+)
+encoder.adapt(train_dataset.map(lambda text, label: text))
+
+
+def encode_text(text, label):
+    text = tf.expand_dims(text, -1)
+    label = tf.expand_dims(label, -1)
+    return encoder(text), label
+
+
+
+
+
+train_dataset = train_dataset.map(encode_text)
+test_dataset = test_dataset.map(encode_text)
+
+AUTOTUNE = tf.data.AUTOTUNE
+
+train_dataset = train_dataset.cache().prefetch(buffer_size=AUTOTUNE)
+test_dataset = test_dataset.cache().prefetch(buffer_size=AUTOTUNE)
+
+
+
+briuh = 10
 ####### END PREPROCESSING #######
 
 
@@ -75,140 +126,74 @@ data_gen = get_data_iterator(STEAM_REVIEWS_SMALL_PATH, CHUNKSIZE, USECOLS)
 
 class RNN:
     def __init__(self) -> None:
+        
+        
+     
+        self.loss = 0.0
+        self.accuracy = 0.0
+        
+        
+        
         self.model = Sequential([
             Embedding(
-                input_dim=VOCAB_SIZE,
+                input_dim=len(encoder.get_vocabulary()),
                 output_dim = EMBEDDING_DIM,
                 # Mask paddings with zeros
                 mask_zero=True
             ),
             Bidirectional(LSTM(EMBEDDING_DIM)),
             Dense(EMBEDDING_DIM, activation='relu'),
-            Dense(1)
+            Dense(1, activation="sigmoid")
         ])  
         
         
         # Compile Model
-        self.model.compile(loss=BinaryCrossentropy(from_logits=True),
-              optimizer=Adam(0.01),
-              metrics=['accuracy']
+        self.model.compile(
+            loss=BinaryCrossentropy(from_logits=False),
+            optimizer=Adam(0.001),
+            metrics=['accuracy']
         )
         
-        # Initialize word Tokenizer
-        self.tokenizer = Tokenizer()
-
-        # Initialize word Encoder
-        self.encoder = TextVectorization(max_tokens=VOCAB_SIZE)
         
         
     def train(self):
-        # Train the model
-        start = time.time()
-        for epoch in range(EPOCHS):
-            print(f"epoch: {epoch + 1}")
-            for chunk in data_gen:
-
-                encoded_texts, labels = self.preprocess_chunk(chunk)
-                self.model.train_on_batch(encoded_texts, labels)
-    
-        interval = time.time() - start
-
-        print(f"Training finished. Took {interval:.2f} seconds.")
-
-
-    # Helper function to encode a chunk of data
-    def preprocess_chunk(self, chunk):
-        labels = chunk[1]
-        texts = [item.decode('utf-8') for item in chunk[0][USECOLS[0]].numpy()]
+        self.model.fit(train_dataset, epochs=EPOCHS, validation_data=test_dataset, validation_steps=30)
         
-        self.tokenizer.fit_on_texts(texts)
-
-        self.encoder.adapt(texts)
-        encoded_texts = self.encoder(texts)
         
-        return encoded_texts, labels
-
-
     def test(self):
-        test_gen = get_data_iterator(STEAM_REVIEWS_SMALL_PATH, CHUNKSIZE, USECOLS)
-        # Evaluation on the test set
-        total_loss = 0.0
-        total_accuracy = 0.0
-        total_batches = 0
+        self.loss, self.accuracy = self.model.evaluate(test_dataset)
+        
+        
+    def print_score(self):
+        print()
+        print(f"Loss:       {self.loss}")
+        print()
+        print(f"Accuracy:   {self.accuracy}")
+        
 
-
-        print("Starting testing.")
-        start = time.time()
-        for chunk in test_gen:
-            encoded_texts, labels = self.preprocess_chunk(chunk)
-            loss, accuracy = self.model.evaluate(encoded_texts, labels, verbose=0)
-            total_loss += loss
-            total_accuracy += accuracy
-            total_batches += 1
-            print(f"Batches tested: {total_batches}.")
-            if total_batches > 10:
-                break
-            
-        interval = time.time() - start
-        print(f"Finished testing. Took {interval:.3f} seconds.")
-
-
-
-
-
-
-
-        average_loss = total_loss / total_batches
-        average_accuracy = total_accuracy / total_batches
-
-        print(f"\n\nAverage Loss: {average_loss}.\nAverage Accuracy: {average_accuracy}.\n\n")
-
-
-
-    def predict(self, text):
-        # Tokenize and encode the input text
-        text = [text]
-        self.encoder.adapt(text)
-        encoded_text = self.encoder(text)
-
-        # Make predictions
-        predictions = self.model.predict(encoded_text)
-
-        # The model output is logits. Apply sigmoid activation for binary classification.
-        predicted_prob = tf.nn.sigmoid(predictions[0]).numpy()
-
-        # Determine the sentiment based on the probability
-        if predicted_prob >= 0.5:
-            sentiment = 'positive'
-        else:
-            sentiment = 'negative'
-
-        return sentiment, predicted_prob
-
-
-
-
+print()
+print()
+print()
+print()
+print()
+print()
+print()
+print()
+print()
 
 
 def main():
     
-    
-    
     rnn = RNN()
+    
     rnn.train()
+    
     rnn.test()
     
+    rnn.print_score()
     
-    inp = input(">>")
-    while inp != "q":
-        sentiment, prob = rnn.predict(inp)
-        
-        if prob < 0.5:
-            print(f"RNN predicts {sentiment} sentiment with {1 - prob} probability.")
-        else:
-            print(f"RNN predicts {sentiment} sentiment with {prob} probability.")
-            
-        inp = input(">>")
+    
+    
         
     
     
