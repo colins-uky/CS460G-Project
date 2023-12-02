@@ -1,22 +1,14 @@
-# NumPy and Pandas
-import numpy as np
-import pandas as pd
-
 # Tensorflow
 import tensorflow as tf
 import tensorflow_hub as hub
-import tensorflow_text
 
 
 # Keras - top level api for tensorflow
 from keras.models import Sequential, load_model
-from keras.layers import SimpleRNN, Dense, Embedding, TextVectorization, LSTM, Bidirectional, Flatten, Dropout
+from keras.layers import Dense, LSTM, Dropout
 from keras.optimizers import Adam
 from keras.losses import BinaryCrossentropy
-from keras.preprocessing.text import Tokenizer
-from keras.utils import to_categorical
 
-from sklearn.model_selection import train_test_split
 
 import time
 import re
@@ -54,27 +46,53 @@ GPT_REVIEWS_PATH = CWD + "/data/test/gpt_reviews.csv"
 #review: text of review, recommended: boolean
 USECOLS = ["review_text", "review_score"]
 
+
+##### Training Settings #####
+
+# Number of rows to read per chunk
+CHUNKSIZE = 100
+
+# 6.4 million rows in dataset / batch size
+ESTIMATED_STEPS_PER_DATASET = 6417200 // CHUNKSIZE
+
+STEPS_PER_EPOCH = None
+EPOCHS = 2
+
+##### Testing Settings #####
+TESTING_STEPS = 3000
+
+
+##### Model Architecture Parameters #####
+
 # Number of distinct words in dataset
 VOCAB_SIZE = 1000
- 
-# Number of rows to read per chunk
-CHUNKSIZE = 20
-
-BUFFER_SIZE = 10000
-BATCH_SIZE = 64
-
 
 EMBEDDING_DIM = 64
-EPOCHS = 3
-TEST_SIZE = 0.2
-
-
-
 MAX_FEATURES = 10000
 SEQUENCE_LENGTH = 250
 
 
+
 ####### END GLOBAL VARS #######
+
+
+####### ESTIMATORS #######
+
+# ~64ms per step if CHUNKSIZE == 100
+# ADJUST IF CHANGING CHUNKSIZE
+time_per_step = 0.064
+
+
+if STEPS_PER_EPOCH is None:
+    time_per_epoch = time_per_step * ESTIMATED_STEPS_PER_DATASET
+else:
+    time_per_epoch = time_per_step * STEPS_PER_EPOCH
+
+
+time_per_training = time_per_epoch * EPOCHS
+
+estimated_time_of_completion = time.ctime(time.time() + time_per_training)
+
 
 
 
@@ -92,11 +110,6 @@ def get_data_pipeline(filpath, chunksize, use_cols):
     
     return it
 
-def filter_input(input_data):
-    lowercase = tf.strings.lower(input_data)
-    stripped_html = tf.strings.regex_replace(lowercase, '<br />', ' ')
-    
-    return tf.strings.regex_replace(stripped_html, '[%s]' % re.escape(string.punctuation), '')
 
 
 
@@ -124,19 +137,31 @@ encoder = hub.load("https://www.kaggle.com/models/google/universal-sentence-enco
 
 
 def encode_text(text, label):
-    text = encoder(text["review_text"])
+    text = encoder(text)
     text = tf.expand_dims(text, -1)
     label = tf.expand_dims(label, -1)
     
     return text, label
 
 
+def filter_input(text, label):
+    lowercase = tf.strings.lower(text["review_text"])
+    stripped_html = tf.strings.regex_replace(lowercase, '<br />', ' ')
+    
+    return tf.strings.regex_replace(stripped_html, '[%s]' % re.escape(string.punctuation), ''), label
+
+
 
 AUTOTUNE = tf.data.AUTOTUNE
 
-train_dataset = train_pipe.map(encode_text)
-val_dataset = val_pipe.map(encode_text)
-test_dataset = test_pipe.map(encode_text)
+
+train_dataset = train_pipe.map(filter_input)
+val_dataset = val_pipe.map(filter_input)
+test_dataset = test_pipe.map(filter_input)
+
+train_dataset = train_dataset.map(encode_text)
+val_dataset = val_dataset.map(encode_text)
+test_dataset = test_dataset.map(encode_text)
 
 
 train_dataset = train_dataset.cache().prefetch(buffer_size=AUTOTUNE)
@@ -181,7 +206,7 @@ class RNN:
         # Compile Model
         self.model.compile(
             loss=BinaryCrossentropy(from_logits=False),
-            optimizer=Adam(0.001),
+            optimizer=Adam(0.0001),
             metrics=['accuracy']
         )
         
@@ -192,35 +217,49 @@ class RNN:
         
     def train(self, steps_per_epoch=None):
         
-        self.model.fit(train_dataset, epochs=EPOCHS, validation_data=test_dataset, validation_steps=30, steps_per_epoch=steps_per_epoch)
+        print("\n\nStarting training.")
+        print(f"Estimated time of completion: {estimated_time_of_completion}.\n\n")
+        
+        
+        self.model.fit(train_dataset, epochs=EPOCHS, validation_data=val_dataset, validation_steps=30, steps_per_epoch=steps_per_epoch)
         
         
     def test(self):
-        self.loss, self.accuracy = self.model.evaluate(test_dataset, steps=10)
+        self.loss, self.accuracy = self.model.evaluate(test_dataset, steps=TESTING_STEPS)
         
         
     def print_score(self):
         print()
-        print(f"Loss:       {self.loss}")
+        print(f"Loss:       {self.loss:.5f}")
         print()
-        print(f"Accuracy:   {self.accuracy}")
+        print(f"Accuracy:   {self.accuracy:.5f}")
         
         
         
     def predict(self, inp: str):
+        with tf.device("/CPU:0"):
+            text, _ = filter_input({"review_text": inp}, 0)
+            text = encoder([inp])
+            text = tf.expand_dims(text, -1)
         
-        text = encoder([inp])
-        text = tf.expand_dims(text, -1)
+            raw_pred = self.model.predict(text)
         
-        pred = self.model.predict(text)
+        pred = raw_pred.tolist()[0][0]
         
-        return pred
+        if pred >= 0.5: # positive prediction
+            label = "positive"
+            probability = pred * 100
+        else:
+            label = "negative"
+            probability = (1 - pred) * 100
+        
+        return label, probability
         
         
         
     
         
-    def save_to_disk(self):
+    def prompt_save(self):
         cwd = os.path.join(CWD)
         filepath = os.path.join(cwd, "bin", "rnn.keras")
 
@@ -230,11 +269,26 @@ class RNN:
             self.model.save(filepath)
         else:
             print("Canceled save.")
-        
-    
-    def load_from_disk(self):
+            
+    def force_save(self):
         cwd = os.path.join(CWD)
-        filepath = os.path.join(cwd, "bin", "rnn.keras")
+        time_struct = time.localtime(time.time())
+        
+        filename = f"model_{time_struct.tm_mon}_{time_struct.tm_mday}_{time_struct.tm_year}-{time_struct.tm_hour}_{time_struct.tm_min}_{time_struct.tm_sec}.keras"
+        filepath = os.path.join(cwd, "bin", "autosaved", filename)
+
+        print(f"Force saving model to {filepath}.")
+        
+        self.model.save(filepath)
+        
+            
+    
+        
+    def load_from_disk(self, filepath=None):
+        cwd = os.path.join(CWD)
+        
+        if filepath is None:
+            filepath = os.path.join(cwd, "bin", "rnn.keras")
 
         answer = input(f"\nLoad model from {filepath} ? \n(y/n) >> ")
         
@@ -242,6 +296,16 @@ class RNN:
             self.model = load_model(filepath)
         else:
             print("Canceled load.")
+            
+            
+    def question_loop(self):
+        inp = input("\n>> ")
+        while inp != 'q':
+            label, prob = self.predict(inp)
+            
+            print(f"Predicted {label} sentiment with {int(prob)}% certainty.")
+            
+            inp = input("\n>> ")
 
 print()
 print()
@@ -258,24 +322,20 @@ def main():
     
     rnn = RNN()
     
-    rnn.build()
+    #rnn.build()
     
-    rnn.train(steps_per_epoch=20)
+    #rnn.train(steps_per_epoch=STEPS_PER_EPOCH)
+    
+    rnn.load_from_disk(filepath=r"C:\Users\colin\OneDrive\Desktop\Repositories\CS460G-Project\bin\autosaved\model_12_1_2023-18_51_51.keras")
     
     rnn.test()
     
     rnn.print_score()
     
-    rnn.save_to_disk()
+    #rnn.force_save()
     
     
-    inp = input(">> ")
-    while inp != 'q':
-        pred = rnn.predict(inp)
-        
-        print(f"Predicted {pred}!")
-        
-        inp = input(">> ")
+    rnn.question_loop()
     
     
         
