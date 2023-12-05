@@ -35,15 +35,13 @@ else:
 CWD = os.getcwd()
 
 
-# (7.98 GB FILE WARNING) 
-# Use get_data_iterator to load data in chunks into memory
-STEAM_REVIEWS_LARGE_PATH = CWD + "/data/archive/steam_reviews_large.csv"
-
-# (2.01 GB FILE WARNING)
+# (7.01 GB FILE WARNING)
 STEAM_REVIEWS_SMALL_PATH = CWD + "/data/archive/steam_reviews_small.csv"
 
 # Smaller dataset for testing (30 rows)
 GPT_REVIEWS_PATH = CWD + "/data/test/gpt_reviews.csv"
+
+RNN_MODEL_PATH = os.path.join(CWD, "rnn.keras")
 
 # Name of columns to read
 #review: text of review, recommended: boolean
@@ -87,6 +85,8 @@ SEQUENCE_LENGTH = 250
 
 # ~64ms per step if CHUNKSIZE == 100
 # ADJUST IF CHANGING CHUNKSIZE
+# NOTE: This variable was experimentally recorded while training with RTX 3070 GPU.
+# The time_per_step will be exponentially larger when running on a CPU
 time_per_step = 0.064 #seconds
 
 
@@ -211,12 +211,17 @@ class RNN:
             Dense(EMBEDDING_DIM, activation='relu'),
             Dense(1, activation="sigmoid")
         ])
+    
+    
+    def compile(self, metrics=None):
         
+        if metrics is None:
+            metrics = ['accuracy']
         # Compile Model
         self.model.compile(
             loss=BinaryCrossentropy(from_logits=False),
             optimizer=Adam(0.0001),
-            metrics=['accuracy']
+            metrics=metrics
         )
         
         
@@ -330,7 +335,7 @@ class RNN:
             
             
     def question_loop(self):
-        print("RNN Input Loop:\nType reviews or 'q' to quit.\n")
+        print("\n\nRNN Input Loop:\nType reviews or 'q' to quit.\n")
         inp = input("\n>> ")
         while inp != 'q':
             label, prob = self.predict(inp)
@@ -357,10 +362,7 @@ print()
 print()
 print()
 print()
-print()
-print()
-print()
-print()
+
 
 
 def main():
@@ -368,19 +370,24 @@ def main():
     rnn = RNN()
     
     #rnn.build()
+    #rnn.compile()
+    rnn.load_from_disk(filepath=RNN_MODEL_PATH, force=FORCE)
     
-    rnn.load_from_disk(filepath=r"C:\Users\colin\OneDrive\Desktop\Repositories\CS460G-Project\bin\rnn.keras", force=FORCE)
+    
     
     #rnn.train(steps_per_epoch=STEPS_PER_EPOCH, force=FORCE)
     #rnn.save_history_to_file()
     
-    #rnn.test()
-    
-    #rnn.print_score()
     
     
+    rnn.test()
     
-    rnn.question_loop()
+    rnn.print_score()
+    
+    
+    
+    
+    #rnn.question_loop()
     
     
         
@@ -390,9 +397,3 @@ def main():
 if __name__ == "__main__":
     main()
     
-
-
-
-
-
-

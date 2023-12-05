@@ -1,0 +1,31 @@
+<mxfile host="app.diagrams.net" modified="2023-12-04T21:29:53.549Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" etag="hPBij-aRGYMRgpb8Ep23" version="22.1.5" type="device">
+  <diagram name="Page-1" id="McLkY1TLP3o_IgrGv7sl">
+    <mxGraphModel dx="2074" dy="1142" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="dcF6t7-qxzwdumNFAkOX-1" value="&lt;font style=&quot;font-size: 22px;&quot;&gt;&lt;b&gt;Input Layer&lt;br&gt;(512 Dimensions)&lt;br&gt;&lt;/b&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#C3ABD0;" vertex="1" parent="1">
+          <mxGeometry x="80" width="680" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="dcF6t7-qxzwdumNFAkOX-2" value="&lt;font style=&quot;font-size: 22px;&quot;&gt;&lt;b&gt;LSTM Layer 1&lt;br&gt;(64 Dimensions)&lt;br&gt;&lt;/b&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#9AC7BF;" vertex="1" parent="1">
+          <mxGeometry x="200" y="160" width="440" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="dcF6t7-qxzwdumNFAkOX-4" value="&lt;font style=&quot;font-size: 22px;&quot;&gt;&lt;b&gt;Dropout Layer 1&lt;br&gt;(Drop 20%)&lt;br&gt;&lt;/b&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F19C99;" vertex="1" parent="1">
+          <mxGeometry x="240" y="300" width="360" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="dcF6t7-qxzwdumNFAkOX-5" value="&lt;font style=&quot;font-size: 22px;&quot;&gt;&lt;b&gt;LSTM Layer 2&lt;br&gt;(64 Dimensions)&lt;br&gt;&lt;/b&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#9AC7BF;" vertex="1" parent="1">
+          <mxGeometry x="200" y="440" width="440" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="dcF6t7-qxzwdumNFAkOX-6" value="&lt;font style=&quot;font-size: 22px;&quot;&gt;&lt;b&gt;Dropout Layer 2&lt;br&gt;(Drop 20%)&lt;br&gt;&lt;/b&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F19C99;" vertex="1" parent="1">
+          <mxGeometry x="240" y="580" width="360" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="dcF6t7-qxzwdumNFAkOX-7" value="&lt;font style=&quot;font-size: 22px;&quot;&gt;&lt;b&gt;Dense Layer&lt;br&gt;(64 Dims, ReLu)&lt;br&gt;&lt;/b&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFD966;" vertex="1" parent="1">
+          <mxGeometry x="280" y="720" width="280" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="dcF6t7-qxzwdumNFAkOX-8" value="&lt;font style=&quot;font-size: 22px;&quot;&gt;&lt;b&gt;Output Layer&lt;br&gt;(1 Dim, Sigmoid)&lt;br&gt;&lt;/b&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFD966;" vertex="1" parent="1">
+          <mxGeometry x="280" y="860" width="280" height="120" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
